@@ -614,7 +614,7 @@ defmodule KafkaEx.Server do
         brokers =
           state.brokers
           |> remove_stale_brokers(metadata_brokers)
-          |> add_new_brokers(metadata_brokers, state.ssl_options, state.use_ssl)
+          |> add_new_brokers(metadata_brokers, state.ssl_options, state.use_ssl, state.sasl_options)
 
         %{
           state
@@ -938,7 +938,8 @@ defmodule KafkaEx.Server do
              brokers,
              [metadata_broker | metadata_brokers],
              ssl_options,
-             use_ssl
+             use_ssl,
+             sasl_options
            ) do
         case Enum.find(brokers, &(metadata_broker.node_id == &1.node_id)) do
           nil ->
@@ -963,11 +964,12 @@ defmodule KafkaEx.Server do
               ],
               metadata_brokers,
               ssl_options,
-              use_ssl
+              use_ssl,
+              sasl_options
             )
 
           _ ->
-            add_new_brokers(brokers, metadata_brokers, ssl_options, use_ssl)
+            add_new_brokers(brokers, metadata_brokers, ssl_options, use_ssl, sasl_options)
         end
       end
 

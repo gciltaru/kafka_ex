@@ -64,12 +64,14 @@ defmodule KafkaEx.Server0P8P2 do
       raise InvalidConsumerGroupError, consumer_group
     end
 
+    sasl_options = Keyword.get(args, :sasl_options, nil)
+
     brokers =
       Enum.map(uris, fn {host, port} ->
         %Broker{
           host: host,
           port: port,
-          socket: NetworkClient.create_socket(host, port)
+          socket: NetworkClient.create_socket(host, port, [], false, sasl_options)
         }
       end)
 
