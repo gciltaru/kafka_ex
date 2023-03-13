@@ -35,13 +35,13 @@ defmodule KafkaEx.NetworkClient do
 
   defp handle_auth(socket, sasl_options) do
     case sasl_options do
-      [mechanism, opts] ->
+      ["OAUTHBEARER", opts] ->
         client_id = Keyword.get(opts, :client_id)
-        resp = sasl_handshake(socket, mechanism, client_id)
+        resp = sasl_oauthbearer_handshake(socket, client_id)
 
         if success(resp) do
           resp =
-            sasl_authenticate(socket, Keyword.get(opts, :token_provider), client_id)
+            sasl_oauthbearer_authenticate(socket, Keyword.get(opts, :token_provider), client_id)
 
           if success(resp) do
             socket
@@ -55,12 +55,29 @@ defmodule KafkaEx.NetworkClient do
     end
   end
 
-  defp sasl_handshake(socket, mechanism, client_id) do
+  defp sasl_oauthbearer_handshake(socket, client_id) do
     request = %{
       Kayrock.SaslHandshake.get_request_struct(1)
-    | mechanism: mechanism,
+    | mechanism: "OAUTHBEARER",
       client_id: client_id,
       correlation_id: 0
+    }
+
+    :ok = Socket.setopts(socket, [:binary, {:packet, 4}, {:active, false}])
+
+    send_auth_request(socket, request)
+  end
+
+  defp sasl_oauthbearer_authenticate(socket, token_provider, client_id) do
+    api_version = 0
+
+    auth_bytes = "n,," <> <<1>> <> "auth=Bearer #{token_provider.token}" <> <<1>> <> <<1>>
+
+    request = %{
+      Kayrock.SaslAuthenticate.get_request_struct(api_version)
+    | sasl_auth_bytes: auth_bytes,
+      client_id: client_id,
+      correlation_id: 1
     }
 
     :ok = Socket.setopts(socket, [:binary, {:packet, 4}, {:active, false}])
@@ -97,24 +114,6 @@ defmodule KafkaEx.NetworkClient do
       raise resp.error_message
     end
   end
-
-  defp sasl_authenticate(socket, token_provider, client_id) do
-    api_version = 0
-
-    auth_bytes = "n,," <> <<1>> <> "auth=Bearer #{token_provider.token}" <> <<1>> <> <<1>>
-
-    request = %{
-      Kayrock.SaslAuthenticate.get_request_struct(api_version)
-    | sasl_auth_bytes: auth_bytes,
-      client_id: client_id,
-      correlation_id: 1
-    }
-
-    :ok = Socket.setopts(socket, [:binary, {:packet, 4}, {:active, false}])
-
-    send_auth_request(socket, request)
-  end
-
 
   @spec close_socket(nil | Socket.t()) :: :ok
   def close_socket(nil), do: :ok
