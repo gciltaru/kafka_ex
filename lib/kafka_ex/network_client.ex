@@ -22,11 +22,7 @@ defmodule KafkaEx.NetworkClient do
           "Successfully connected to broker #{inspect(host)}:#{inspect(port)}"
         )
 
-        if handle_auth(socket, sasl_options) do
-          socket
-        else
-          nil
-        end
+        handle_auth(socket, sasl_options)
       err ->
         Logger.log(
           :error,
@@ -40,11 +36,12 @@ defmodule KafkaEx.NetworkClient do
   defp handle_auth(socket, sasl_options) do
     case sasl_options do
       [mechanism, opts] ->
-        resp = sasl_handshake(socket, mechanism)
+        client_id = Keyword.get(opts, :client_id)
+        resp = sasl_handshake(socket, mechanism, client_id)
 
         if success(resp) do
           resp =
-            sasl_authenticate(socket, Keyword.get(opts, :token_provider))
+            sasl_authenticate(socket, Keyword.get(opts, :token_provider), client_id)
 
           if success(resp) do
             socket
@@ -54,21 +51,21 @@ defmodule KafkaEx.NetworkClient do
         end
 
       _ ->
-        nil
+        socket
     end
   end
 
-  defp sasl_handshake(socket, mechanism) do
+  defp sasl_handshake(socket, mechanism, client_id) do
     request = %{
       Kayrock.SaslHandshake.get_request_struct(1)
     | mechanism: mechanism,
-      client_id: "reactor_service_api", #Config.client_id(),
+      client_id: client_id,
       correlation_id: 0
     }
 
     :ok = Socket.setopts(socket, [:binary, {:packet, 4}, {:active, false}])
 
-    resp = send_auth_request(socket, request)
+    send_auth_request(socket, request)
   end
 
   defp send_auth_request(socket, request) do
@@ -101,7 +98,7 @@ defmodule KafkaEx.NetworkClient do
     end
   end
 
-  defp sasl_authenticate(socket, token_provider) do
+  defp sasl_authenticate(socket, token_provider, client_id) do
     api_version = 0
 
     auth_bytes = "n,," <> <<1>> <> "auth=Bearer #{token_provider.token}" <> <<1>> <> <<1>>
@@ -109,13 +106,13 @@ defmodule KafkaEx.NetworkClient do
     request = %{
       Kayrock.SaslAuthenticate.get_request_struct(api_version)
     | sasl_auth_bytes: auth_bytes,
-      client_id: "reactor_service_api", #Config.client_id(),
+      client_id: client_id,
       correlation_id: 1
     }
 
     :ok = Socket.setopts(socket, [:binary, {:packet, 4}, {:active, false}])
 
-    resp = send_auth_request(socket, request)
+    send_auth_request(socket, request)
   end
 
 
