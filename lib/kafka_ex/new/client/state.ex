@@ -14,6 +14,7 @@ defmodule KafkaEx.New.Client.State do
     consumer_group_update_interval: nil,
     worker_name: KafkaEx.Server,
     ssl_options: [],
+    sasl_options: [],
     use_ssl: false,
     api_versions: %{},
     allow_auto_topic_creation: true

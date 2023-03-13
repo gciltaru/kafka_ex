@@ -8,10 +8,12 @@ defmodule KafkaEx.NetworkClient do
   @spec create_socket(binary, non_neg_integer, KafkaEx.ssl_options(), boolean) ::
           nil | Socket.t()
   def create_socket(host, port, ssl_options \\ [], use_ssl \\ false, sasl_options \\ []) do
+    formatted_host = format_host(host)
+    built_socket_options = build_socket_options(ssl_options)
     case Socket.create(
-           format_host(host),
+           formatted_host,
            port,
-           build_socket_options(ssl_options),
+           built_socket_options,
            use_ssl
          ) do
       {:ok, socket} ->
@@ -25,9 +27,6 @@ defmodule KafkaEx.NetworkClient do
         else
           nil
         end
-
-        socket
-
       err ->
         Logger.log(
           :error,
@@ -40,8 +39,8 @@ defmodule KafkaEx.NetworkClient do
 
   defp handle_auth(socket, sasl_options) do
     case sasl_options do
-      {:sasl, mechanism, opts} ->
-        resp = sasl_handshake(socket, String.upcase(Atom.to_string(mechanism)))
+      [mechanism, opts] ->
+        resp = sasl_handshake(socket, mechanism)
 
         if success(resp) do
           resp =
@@ -63,7 +62,7 @@ defmodule KafkaEx.NetworkClient do
     request = %{
       Kayrock.SaslHandshake.get_request_struct(1)
     | mechanism: mechanism,
-      client_id: Config.client_id(),
+      client_id: "reactor_service_api", #Config.client_id(),
       correlation_id: 0
     }
 
@@ -73,12 +72,13 @@ defmodule KafkaEx.NetworkClient do
   end
 
   defp send_auth_request(socket, request) do
-    case Socket.send(socket, Kayrock.Request.serialize(request)) do
+    serialized_request = Kayrock.Request.serialize(request)
+
+    case Socket.send(socket, serialized_request) do
       :ok ->
         case Socket.recv(socket, 0, 25000) do
           {:ok, data} ->
             :ok = Socket.setopts(socket, [:binary, {:packet, 4}, {:active, true}])
-
             deserializer = Kayrock.Request.response_deserializer(request)
             {resp, _} = deserializer.(data)
             resp
@@ -109,7 +109,7 @@ defmodule KafkaEx.NetworkClient do
     request = %{
       Kayrock.SaslAuthenticate.get_request_struct(api_version)
     | sasl_auth_bytes: auth_bytes,
-      client_id: Config.client_id(),
+      client_id: "reactor_service_api", #Config.client_id(),
       correlation_id: 1
     }
 

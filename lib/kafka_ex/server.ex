@@ -38,6 +38,7 @@ defmodule KafkaEx.Server do
       consumer_group_update_interval: nil,
       worker_name: KafkaEx.Server,
       ssl_options: [],
+      sasl_options: [],
       use_ssl: false,
       api_versions: []
     )
@@ -52,6 +53,7 @@ defmodule KafkaEx.Server do
             consumer_group_update_interval: nil | integer,
             worker_name: atom,
             ssl_options: KafkaEx.ssl_options(),
+            sasl_options: KafkaEx.sasl_options(),
             use_ssl: boolean,
             api_versions: [KafkaEx.Protocol.ApiVersions.ApiVersion]
           }
@@ -745,6 +747,7 @@ defmodule KafkaEx.Server do
       defp kafka_common_init(args, name) do
         use_ssl = Keyword.get(args, :use_ssl, false)
         ssl_options = Keyword.get(args, :ssl_options, [])
+        sasl_options = Keyword.get(args, :sasl_options, [])
 
         uris = Keyword.get(args, :uris, [])
 
@@ -757,7 +760,7 @@ defmodule KafkaEx.Server do
 
         brokers =
           for {host, port} <- uris do
-            connect_broker(host, port, ssl_options, use_ssl)
+            connect_broker(host, port, ssl_options, use_ssl, sasl_options)
           end
 
         check_brokers_sockets!(brokers)
@@ -781,6 +784,7 @@ defmodule KafkaEx.Server do
           correlation_id: correlation_id,
           metadata_update_interval: metadata_update_interval,
           ssl_options: ssl_options,
+          sasl_options: sasl_options,
           use_ssl: use_ssl,
           worker_name: name,
           api_versions: [:unsupported]
@@ -812,11 +816,11 @@ defmodule KafkaEx.Server do
         end
       end
 
-      defp connect_broker(host, port, ssl_opts, use_ssl) do
+      defp connect_broker(host, port, ssl_opts, use_ssl, sasl_opts) do
         %Broker{
           host: host,
           port: port,
-          socket: NetworkClient.create_socket(host, port, ssl_opts, use_ssl)
+          socket: NetworkClient.create_socket(host, port, ssl_opts, use_ssl, sasl_opts)
         }
       end
 
@@ -932,7 +936,7 @@ defmodule KafkaEx.Server do
         end
       end
 
-      defp add_new_brokers(brokers, [], _, _), do: brokers
+      defp add_new_brokers(brokers, [], _, _, []), do: brokers
 
       defp add_new_brokers(
              brokers,
@@ -957,7 +961,8 @@ defmodule KafkaEx.Server do
                         metadata_broker.host,
                         metadata_broker.port,
                         ssl_options,
-                        use_ssl
+                        use_ssl,
+                        sasl_options
                       )
                 }
                 | brokers

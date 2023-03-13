@@ -37,6 +37,9 @@ defmodule KafkaEx.Config do
   end
 
   @doc false
+  def sasl_options, do: Application.get_env(:kafka_ex, :sasl_options, [])
+
+  @doc false
   def default_worker do
     :kafka_ex
   end

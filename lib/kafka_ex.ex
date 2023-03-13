@@ -52,12 +52,14 @@ defmodule KafkaEx do
           | {:keyfile, binary}
           | {:password, binary}
         ]
+  @type sasl_options :: any
   @type worker_setting ::
           {:uris, uri}
           | {:consumer_group, binary | :no_consumer_group}
           | {:metadata_update_interval, non_neg_integer}
           | {:consumer_group_update_interval, non_neg_integer}
           | {:ssl_options, ssl_options}
+          | {:sasl_options, sasl_options}
           | {:initial_topics, [binary]}
 
   @doc """
@@ -630,7 +632,8 @@ defmodule KafkaEx do
       uris: Config.brokers(),
       consumer_group: Config.consumer_group(),
       use_ssl: Config.use_ssl(),
-      ssl_options: Config.ssl_options()
+      ssl_options: Config.ssl_options(),
+      sasl_options: Config.sasl_options()
     ]
 
     worker_init = Keyword.merge(defaults, worker_init)
